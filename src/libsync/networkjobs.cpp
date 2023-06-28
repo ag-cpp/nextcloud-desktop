@@ -50,6 +50,7 @@ namespace OCC {
 Q_LOGGING_CATEGORY(lcEtagJob, "nextcloud.sync.networkjob.etag", QtInfoMsg)
 Q_LOGGING_CATEGORY(lcLsColJob, "nextcloud.sync.networkjob.lscol", QtInfoMsg)
 Q_LOGGING_CATEGORY(lcCheckServerJob, "nextcloud.sync.networkjob.checkserver", QtInfoMsg)
+Q_LOGGING_CATEGORY(lcCheckRedirectCostFreeUrlJob, "nextcloud.sync.networkjob.checkredirectcostfreeurl", QtInfoMsg)
 Q_LOGGING_CATEGORY(lcPropfindJob, "nextcloud.sync.networkjob.propfind", QtInfoMsg)
 Q_LOGGING_CATEGORY(lcAvatarJob, "nextcloud.sync.networkjob.avatar", QtInfoMsg)
 Q_LOGGING_CATEGORY(lcMkColJob, "nextcloud.sync.networkjob.mkcol", QtInfoMsg)
@@ -552,6 +553,38 @@ bool CheckServerJob::finished()
     return true;
 }
 
+/*********************************************************************************************/
+
+CheckRedirectCostFreeUrlJob::CheckRedirectCostFreeUrlJob(AccountPtr account, QObject *parent)
+    : AbstractNetworkJob(account, QLatin1String(statusphpC), parent)
+{
+    setIgnoreCredentialFailure(true);
+}
+
+void CheckRedirectCostFreeUrlJob::start()
+{
+    setFollowRedirects(false);
+    const auto url = account()->url();
+    sendRequest("GET", Utility::concatUrlPath(url, QStringLiteral("/index.php/204")));
+    AbstractNetworkJob::start();
+}
+
+void CheckRedirectCostFreeUrlJob::onTimedOut()
+{
+    qCWarning(lcCheckRedirectCostFreeUrlJob) << "TIMEOUT";
+    if (reply() && reply()->isRunning()) {
+        emit timeout(reply()->url());
+    } else if (!reply()) {
+        qCWarning(lcCheckRedirectCostFreeUrlJob) << "Timeout even there was no reply?";
+    }
+    deleteLater();
+}
+
+bool CheckRedirectCostFreeUrlJob::finished()
+{
+    emit jobFinished(reply()->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
+    return true;
+}
 /*********************************************************************************************/
 
 PropfindJob::PropfindJob(AccountPtr account, const QString &path, QObject *parent)

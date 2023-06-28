@@ -124,6 +124,11 @@ void AccountState::setState(State state)
             // produced the 503. It's finished anyway and will delete itself.
             _connectionValidator.clear();
             checkConnectivity();
+        } else if (_state == Redirect) {
+            // Check if we are actually down for maintenance.
+            // To do this we must clear the connection validator that just
+            _connectionValidator.clear();
+            checkConnectivity();
         }
         if (oldState == Connected || _state == Connected) {
             emit isConnectedChanged();
@@ -345,7 +350,8 @@ void AccountState::slotConnectionValidatorResult(ConnectionValidator::Status sta
     // Come online gradually from 503 or maintenance mode
     if (status == ConnectionValidator::Connected
         && (_connectionStatus == ConnectionValidator::ServiceUnavailable
-            || _connectionStatus == ConnectionValidator::MaintenanceMode)) {
+            || _connectionStatus == ConnectionValidator::MaintenanceMode)
+              || _connectionStatus == ConnectionValidator::StatusRedirect) {
         if (!_timeSinceMaintenanceOver.isValid()) {
             qCInfo(lcAccountState) << "AccountState reconnection: delaying for"
                                    << _maintenanceToConnectedDelay << "ms";
@@ -410,6 +416,10 @@ void AccountState::slotConnectionValidatorResult(ConnectionValidator::Status sta
     case ConnectionValidator::MaintenanceMode:
         _timeSinceMaintenanceOver.invalidate();
         setState(MaintenanceMode);
+        break;
+    case ConnectionValidator::StatusRedirect:
+        _timeSinceMaintenanceOver.invalidate();
+        setState(Redirect);
         break;
     case ConnectionValidator::Timeout:
         setState(NetworkError);
